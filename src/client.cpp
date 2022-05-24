@@ -188,10 +188,10 @@ int main(int argc, char** argv) {
 	server_name = sdata.substr(first+1, second-first-1);
 	server_motd = sdata.substr(second+1);
 
-	cout << "\033[2J\n";
-	cout<<"\033[38;5;33m"<<endl<<"\t  ====== Welcome to "<<server_name<<" ======   "<<endl<<"\t\t"<<server_motd<<def_col<<endl;
-	cout<<"\033[38;5;226m\t\t" << ip << ":" << server_port << def_col << endl;
-	cout<<"\033[s";
+	cout << "\033[2J\033[H\n";
+	cout << "\033[38;5;33m" << endl << "\t  ====== Welcome to  "<< server_name << " ======   " << endl << "\t\t" << server_motd << def_col << endl;
+	cout << "\033[38;5;226m\t\t" << ip << ":" << server_port << def_col << endl;
+	cout << "\033[s";
 	chatting = true;
 
 	thread t2(recv_message, client_socket);
