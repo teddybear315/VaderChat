@@ -57,6 +57,5 @@ send ConnectSuccess
 timestamp \ [(user color)<username>] : <message>
 
 commands
-better data transfer and possibly data parser
-transfer data as json over network
+server user input
 store data about server (online users, )
