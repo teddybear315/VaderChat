@@ -1,0 +1,62 @@
+Chat app
+
+client -L[og] -I[P]= -P[ort]= -U[sername]= -[pass]W[ord]
+if -U not supplied ask for username
+same for IP and port
+
+server -N[ame]= -P[ort]= -[pass]W[ord] -M[OTD]=
+
+u red 160
+u orange 208
+u gold 220
+! yellow 226
+! lime 46
+u green 22
+u cyan 51
+! light blue 33
+u blue 21
+u cornflower 69
+u lavender 99
+u purple 92
+u magenta 200
+! pink 198
+---brown 94
+
+message max [16384]
+server name [32]
+server motd [256]
+server password [64]
+username [32]
+type [16]
+message[256]
+
+PACKET TYPES
+PASSWORD_REQUEST
+USERNAME_REQUEST
+CONNECTION_SUCCESS (server name, server motd)
+CONNECTION_FAILURE
+MESSAGE (sender_name, sender_id, message)
+USER_KICK (user_id, user_name)
+USER_BAN (user_id, user_name)
+SHUTDOWN
+USER_JOIN (user_id, user_name)
+USER_LEAVE (user_id, user_name)
+DATA (data)
+
+
+server connection sequence:
+send PasswordRequest
+recieve password
+if password wrong repeat
+send UsernameRequest
+recieve username
+if username taken repeat
+send ConnectSuccess
+
+
+timestamp \ [(user color)<username>] : <message>
+
+commands
+better data transfer and possibly data parser
+transfer data as json over network
+store data about server (online users, )
