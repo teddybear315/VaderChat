@@ -222,8 +222,8 @@ void catch_ctrl_c(int signal) {
 	exit(signal);
 }
 
-string color(int code)
-{
+string color(int code) {
+	if (code == -1) return "\033[0m";
 	return user_colors[code%NUM_UCOLORS];
 }
 
@@ -282,7 +282,7 @@ void recv_message(int client_socket) {
 		sdata = string(data);
 		if (sdata.find('|') == std::string::npos) {
 			type = data;
-			if (verbose) cout << "\033[u" << "packet:" << data << endl;
+			if (verbose) cout << "\033[u" << "packet:" << data << endl << "\033[s";
 			if (type == packet_types[PACKET_TYPE::SHUTDOWN]) {
 				cout << "\033[u" << "\033[38;5;" << std::to_string(COLORS::PINK) << "mServer shutdown..." << def_col << endl;
 				exit_flag=true;
@@ -294,7 +294,7 @@ void recv_message(int client_socket) {
 		} else {
 			int first_sep = sdata.find('|',0), second_sep, third_sep;
 			type = sdata.substr(0, first_sep);
-			if (verbose) cout << "\033[u" << "packet:" << type << "|" << data << endl;
+			if (verbose) cout << "\033[u" << "packet:" << type << "|" << data << endl << "\033[s";
 			if (type == packet_types[PACKET_TYPE::MESSAGE]) {
 				string username, message;
 				int color_code;
@@ -332,6 +332,14 @@ void recv_message(int client_socket) {
 				user_id = std::stoi(sdata.substr(first_sep+1, second_sep-first_sep-1));
 				username = sdata.substr(second_sep+1);
 				cout << "\033[u" << color(user_id) << username << " has left." << def_col << endl;
+			} else if (type == packet_types[PACKET_TYPE::SHUTDOWN]) {
+				cout << user_colors[0] << "Server Shutdown...";
+				fflush(stdout);
+				exit_flag=true;
+				t_recv.detach();
+				t_send.detach();
+				closesocket(client_socket);
+				exit(0);
 			}
 			cout << "\033[s";
 			cout << "\033[H\033[K" << user_colors[user_color] << "You: \033[38;5;244mType '#exit' to exit.\033[0;6f" << def_col;

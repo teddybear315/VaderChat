@@ -22,6 +22,8 @@ u magenta 200
 ! pink 198
 ---brown 94
 
+connect to discord rpc
+
 message max [16384]
 server name [32]
 server motd [256]
@@ -54,7 +56,7 @@ if username taken repeat
 send ConnectSuccess
 
 
-timestamp \ [(user color)<username>] : <message>
+timestamp | [(user color)<username>] : <message>
 
 commands
 server user input

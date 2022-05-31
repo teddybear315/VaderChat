@@ -64,19 +64,21 @@ int seed=0;
 std::mutex cout_mtx,clients_mtx;
 SOCKET server_socket;
 sockaddr_in server;
-bool running = true, verbose = false;
+thread t_input, t_listen;
+bool exit_flag = false, verbose = false;
 
 string color(int code);
 int eraseText(int cnt);
 void catch_ctrl_c(int signal);
 void set_name(int id, char name[]);
 string get_name(int id);
-void shared_print(string str, bool endLine = true);
+void shared_print(string str);
+void print_caret();
 void broadcast_message(PACKET_TYPE type, int sender_id, string message = "");
 void end_connection(int id);
 void handle_client(SOCKET client_socket, int id);
-void get_input(SOCKET server_socket);
-// void listen(SOCKET client_socket, sockaddr_in client, int len);
+void tf_input(SOCKET server_socket);
+void tf_listen(SOCKET client_socket, sockaddr_in client, int len);
 
 int main(int argc, char **argv) {
 	if (argc > 1) {
@@ -153,12 +155,61 @@ int main(int argc, char **argv) {
 	sockaddr_in client;
 	SOCKET client_socket;
 	int len=sizeof(sockaddr_in);
-	// light blue
-	cout<<endl<<"\033[38;5;33m"<<"\t  ====== Welcome to "<<server_name<<" ======   "<<endl<<"\t\t"<<server_motd<<endl<<def_col;
-	// yellow
+	cout<<"\033[2J\033[H\n\033[38;5;33m"<<endl<<"\t  ====== Welcome to "<<server_name<<" ======   "<<endl<<"\t\t"<<server_motd<<endl<<def_col;
 	cout<<"\033[38;5;226m\t\t" << server_ip << ":" << server_port << def_col << endl;
+	cout<<"\033[s";
 
-	while(running) {
+	thread t1(tf_input, server_socket);
+	thread t2(tf_listen, client_socket, client, len);
+
+	t_input=move(t1);
+	t_listen=move(t2);
+
+	if(t_input.joinable())
+		t_input.join();
+	if(t_listen.joinable())
+		t_listen.join();
+
+	return 0;
+}
+
+void tf_input(SOCKET server_socket) {
+	while(!exit_flag) {
+		char msgData[MAX_LEN] = "";
+		print_caret();
+		cin.getline(msgData, MAX_LEN);
+		string smsg = msgData;
+		if (msgData[0] == '#') {
+			if(smsg == "#exit") {
+				exit_flag=true;
+				broadcast_message(PACKET_TYPE::SHUTDOWN, -1);
+				t_input.detach();
+				t_listen.detach();
+				closesocket(server_socket);
+			} else if (smsg.find("#kick") == 0) {
+				int s1 = smsg.find(' ');
+				string username = smsg.substr(s1+1);
+				for (int i = 0; i < clients.size(); i++) {
+					if (clients[i].name == username) {
+						broadcast_message(PACKET_TYPE::USER_KICK, clients[i].id);
+						shared_print("\033[u"+color(clients[i].id)+clients[i].name+" has been kicked\n\033[s"+def_col);
+						end_connection(clients[i].id);
+					}
+				}
+			}
+		} else if (strcmp(msgData, "") != 0) {
+			broadcast_message(PACKET_TYPE::MESSAGE, -1, msgData);
+		}
+		if (cin.fail()) {
+			cin.clear();
+			cin.ignore(MAX_LEN, '\n');
+		}
+	}
+	catch_ctrl_c(0);
+}
+
+void tf_listen(SOCKET client_socket, sockaddr_in client, int len) {
+	while(!exit_flag) {
 		client_socket=accept(server_socket,(sockaddr *)&client,&len);
 		if(client_socket==INVALID_SOCKET) {
 			wprintf(L"listen failed with error %u\n", WSAGetLastError());
@@ -181,7 +232,6 @@ int main(int argc, char **argv) {
 
 	closesocket(server_socket);
 	WSACleanup();
-	return 0;
 }
 
 string color(int code) {
@@ -206,6 +256,7 @@ void set_name(int id, char name[]) {
 
 // get name of client
 string get_name(int id) {
+	if (id == -1) return "Server";
 	for(int i=0; i<clients.size(); i++) {
 		if(clients[i].id==id) {
 			return clients[i].name;
@@ -215,9 +266,9 @@ string get_name(int id) {
 
 // Handler for "Ctrl + C"
 void catch_ctrl_c(int signal) {
-	running = false;
+	exit_flag = true;
 	shared_print("Broadcasting shutdown...");
-	broadcast_message(PACKET_TYPE::SHUTDOWN, 0);
+	broadcast_message(PACKET_TYPE::SHUTDOWN, -1);
 
 	for(int i=0; i<clients.size(); i++) {
 		if(clients[i].th.joinable()) {
@@ -233,11 +284,15 @@ void catch_ctrl_c(int signal) {
 	exit(0);
 }
 
+void print_caret() {
+	shared_print("\033[H\033[K> \033[38;5;244mType '#exit' to exit.\033[0;3f"+def_col);
+	fflush(stdout);
+}
+
 // For synchronisation of cout statements
-void shared_print(string str, bool endLine) {
+void shared_print(string str) {
 	std::lock_guard<std::mutex> guard(cout_mtx);
 	cout<<str;
-	if(endLine) cout << endl;
 }
 
 // Broadcast message to all clients except the sender
@@ -285,7 +340,8 @@ void handle_client(SOCKET client_socket, int id) {
 			if (password == server_password) {
 				logged_in = true;
 			} else {
-				shared_print("\033[38;5;"+std::to_string(COLORS::PINK)+"mAttempt "+sdata.substr(sdata.find('|')+1)+"/"+server_password);
+				shared_print("\033[u\033[38;5;"+std::to_string(COLORS::PINK)+"mAttempt "+sdata.substr(sdata.find('|')+1)+"/"+server_password+"\n\033[s");
+				print_caret();
 			}
 		}
 	}
@@ -332,24 +388,24 @@ void handle_client(SOCKET client_socket, int id) {
 	string welcome_message= name+(verbose ? "("+std::to_string(id)+")" : "")+" has joined";
 	broadcast_message(PACKET_TYPE::USER_JOIN,id);
 	// broadcast_message(PACKET_TYPE::MESSAGE,id,welcome_message);
-	shared_print(color(id)+welcome_message+def_col);
+	shared_print("\033[u"+color(id)+welcome_message+def_col+"\n\033[s");
+	print_caret();
 	
-	while(running) {
+	while(!exit_flag) {
 		int bytes_received=recv(client_socket,data,sizeof(data),0);
 		if(bytes_received<=0)
 			return;
-		else if (verbose) shared_print("packet:"+string(data));
+		else if (verbose) shared_print("\033[upacket:"+string(data)+"\n\033[s");
 		if(strcmp(data, "#exit") == 0) {
 			// Display leaving message
 			string message=name+" has left";
 			broadcast_message(PACKET_TYPE::USER_LEAVE,id);
-			// broadcast_message(PACKET_TYPE::MESSAGE,id,message);
-			shared_print(color(id)+message+def_col);
+			shared_print("\033[u"+color(id)+message+def_col+"\n\033[s");
 			end_connection(id);
-			return;
+		} else {
+			broadcast_message(PACKET_TYPE::MESSAGE, id, data);
+			shared_print("\033[u"+color(id)+name+": "+def_col+data+"\n\033[s");
 		}
-		broadcast_message(PACKET_TYPE::MESSAGE, id, data);
-		shared_print(color(id)+name+": "+def_col+data);
-		fflush(stdout);
+		print_caret();
 	}
 }
